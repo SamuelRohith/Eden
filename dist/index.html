@@ -1,0 +1,92 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#215ced">
+  <meta name="description" content="Every match has a story. Create two teams and watch a complete football match unfold in 90 seconds, with live stats and commentary.">
+  <title>EDEN — Every match has a story.</title>
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='18' fill='%23215ced'/%3E%3Cpath d='M18 18h29v7H25v5h18v7H25v5h22v7H18z' fill='white'/%3E%3C/svg%3E">
+  <link rel="stylesheet" href="styles.css">
+  <script type="module" src="app.js"></script>
+</head>
+<body>
+  <div class="app-shell">
+    <header class="site-header">
+      <a class="brand" href="./" aria-label="Eden home"><span class="brand-icon">E</span><span>EDEN<span class="brand-dot">.</span></span></a>
+      <div class="header-meta"><span class="status-dot"></span><span id="headerStatus">THE MATCH LAB</span></div>
+      <span class="header-note">A little football. A lot of possibility.</span>
+    </header>
+
+    <main id="welcome" class="welcome">
+      <section class="hero-copy">
+        <div class="eyebrow"><span></span> WELCOME TO THE MATCH LAB</div>
+        <h1>Every match<br>has a <span>story.</span></h1>
+        <p class="hero-description">Give two teams a name. Set their shape. Watch 90 minutes of football unfold in just 90 seconds.</p>
+        <button id="runSimulation" class="button button-primary button-large" type="button">Run The Simulation <span aria-hidden="true">↗</span></button>
+        <div class="hero-details"><span><b>22</b> players</span><i></i><span><b>90</b> seconds</span><i></i><span>A new story, every time</span></div>
+      </section>
+      <div class="hero-art" aria-hidden="true">
+        <div class="art-label"><span class="status-dot"></span> YOUR NEXT MATCH STARTS HERE</div>
+        <div class="art-pitch">
+          <div class="art-half"></div><div class="art-centre"></div><div class="art-box left"></div><div class="art-box right"></div>
+          <span class="art-player red" style="--x:25%;--y:30%">8</span><span class="art-player red" style="--x:35%;--y:66%">7</span><span class="art-player red" style="--x:54%;--y:42%">10</span><span class="art-player red" style="--x:68%;--y:67%">9</span><span class="art-player blue" style="--x:72%;--y:30%">4</span><span class="art-player blue" style="--x:61%;--y:56%">6</span><span class="art-player blue" style="--x:81%;--y:70%">3</span><span class="art-player blue" style="--x:42%;--y:28%">8</span><span class="art-ball">⚽</span>
+          <svg viewBox="0 0 500 350"><path d="M260 145 Q320 150 340 235" fill="none" stroke="#215ced" stroke-width="2" stroke-dasharray="6 7" opacity=".45"/></svg>
+        </div>
+        <div class="art-caption"><span class="caption-icon">↗</span><div><strong>The beautiful game, in motion.</strong><span>Live play. Real stories. Entirely simulated.</span></div></div>
+        <div class="art-corner">EDEN / 001</div>
+      </div>
+      <footer class="welcome-footer"><span>BUILT FOR THE LOVE OF THE GAME</span><span>Synthetic matches. Endless possibilities.</span></footer>
+    </main>
+
+    <main id="matchRoom" class="match-room" hidden>
+      <div class="room-heading"><div><div class="eyebrow">EDEN / MATCH ROOM</div><h1>Your match. In motion.</h1></div><span class="simulation-badge"><span class="status-dot"></span><span id="matchBadge">SIMULATION LIVE</span></span></div>
+      <div class="match-layout">
+        <aside class="match-sidebar">
+          <section class="panel stats-panel" aria-labelledby="statsTitle">
+            <div class="section-heading"><h2 id="statsTitle">Match stats</h2><span class="section-icon" aria-hidden="true">↗</span></div>
+            <div class="stat-team-key"><span><i class="team-dot red"></i><span id="statHomeName">Red team</span></span><span><span id="statAwayName">Blue team</span><i class="team-dot blue"></i></span></div>
+            <div class="stat-label">Ball possession</div>
+            <div class="possession-track" role="img" id="possessionBar" aria-label="Possession: 50 percent each"><div id="possessionHome" class="possession-home"><b id="homePossession">50%</b></div><div class="possession-away"><b id="awayPossession">50%</b></div></div>
+            <div class="stat-row"><strong id="homePasses">0</strong><span>Passes completed</span><strong id="awayPasses">0</strong></div>
+            <div class="stat-row"><strong id="homeShots">0</strong><span>Total shots</span><strong id="awayShots">0</strong></div>
+            <div class="stats-note"><span class="tiny-pulse"></span> Updates as the action unfolds</div>
+          </section>
+          <section id="finishPanel" class="panel finish-panel" aria-live="polite" hidden>
+            <div class="eyebrow">THAT'S FULL TIME</div><h2 id="finishTitle">What a match.</h2><p id="finishSummary"></p>
+            <div id="rematchQuestion"><p class="rematch-label">Simulate another match?</p><div class="finish-actions"><button id="yesRematch" class="button button-primary" type="button">Yes, let's play <span aria-hidden="true">↗</span></button><button id="noRematch" class="button button-secondary" type="button">No, review match</button></div></div>
+            <div id="reviewActions" hidden><p class="review-note">Your final stats and commentary are here to review.</p><button id="anotherMatch" class="button button-primary" type="button">Simulate another match <span aria-hidden="true">↗</span></button></div>
+          </section>
+          <section class="panel commentary-panel" aria-labelledby="commentaryTitle">
+            <div class="section-heading"><h2 id="commentaryTitle">From the touchline</h2><span class="live-label" id="commentaryLive">LIVE</span></div>
+            <p class="panel-description">The moments that make the match.</p>
+            <div id="commentary" class="commentary-feed" role="log" aria-label="Match highlights" aria-live="polite" aria-relevant="additions"></div>
+          </section>
+        </aside>
+        <section class="arena-column" aria-label="Live simulated football match">
+          <div class="pitch-card">
+            <div class="scoreboard"><div class="scoreboard-team home"><span class="score-team-dot red"></span><div><strong id="scoreHomeName">Red team</strong><span id="homeFormation">4–3–3</span></div></div><div class="score-center"><div class="score-number"><span id="homeScore">0</span><i>:</i><span id="awayScore">0</span></div><span id="matchClock" class="match-clock">00:00</span></div><div class="scoreboard-team away"><div><strong id="scoreAwayName">Blue team</strong><span id="awayFormation">4–4–2</span></div><span class="score-team-dot blue"></span></div></div>
+            <canvas id="pitchCanvas" role="img" aria-label="Live pitch with 22 numbered players and a football"></canvas>
+            <div id="goalToast" class="goal-toast" hidden><span>GOOOAL!</span><strong id="goalScorer"></strong></div>
+            <div class="pitch-bottom"><span><i class="tiny-pulse"></i><span id="pitchStatus">The match is under way</span></span><span id="pitchMinute">1 real second = 1 match minute</span></div>
+          </div>
+          <div class="match-progress"><div class="progress-top"><span id="progressStatus">THE STORY IS UNFOLDING</span><span id="realTimer">90 seconds remaining</span></div><div class="progress-track" role="progressbar" aria-label="Match progress" aria-valuemin="0" aria-valuemax="90" aria-valuenow="0" id="matchProgress"><div id="progressFill"></div></div><div class="progress-markers"><span>KICK-OFF</span><span>HALF TIME</span><span>FULL TIME</span></div></div>
+          <div class="match-footnote"><span>All players, events and results are simulated.</span><span>RED vs BLUE <i>·</i> 22 PLAYERS ON THE PITCH</span></div>
+        </section>
+      </div>
+    </main>
+  </div>
+  <dialog id="setupDialog" class="setup-dialog">
+    <form id="setupForm">
+      <div class="dialog-top"><span class="eyebrow">MAKE IT YOUR MATCH</span><button id="closeSetup" class="icon-button" type="button" aria-label="Close team setup">×</button></div>
+      <h2>Two teams.<br>One beautiful game.</h2><p class="setup-description">Pick the names. Set the formations. We'll take it from here.</p>
+      <div class="team-setups">
+        <fieldset class="team-setup"><legend><i class="team-dot red"></i> THE RED SIDE</legend><label for="homeName">Team name</label><input id="homeName" name="homeName" placeholder="e.g. Northgate FC" value="Northgate FC" maxlength="28" required autocomplete="off"><label for="homeShape">Formation</label><select id="homeShape" name="homeShape"><option value="4-3-3">4–3–3 · The attacking classic</option><option value="4-5-1">4–5–1 · Strength in midfield</option><option value="4-4-2">4–4–2 · The balanced approach</option><option value="4-2-3-1">4–2–3–1 · Creative control</option><option value="3-5-2">3–5–2 · Width and numbers</option></select></fieldset>
+        <fieldset class="team-setup"><legend><i class="team-dot blue"></i> THE BLUE SIDE</legend><label for="awayName">Team name</label><input id="awayName" name="awayName" placeholder="e.g. Harbor United" value="Harbor United" maxlength="28" required autocomplete="off"><label for="awayShape">Formation</label><select id="awayShape" name="awayShape"><option value="4-3-3">4–3–3 · The attacking classic</option><option value="4-5-1">4–5–1 · Strength in midfield</option><option value="4-4-2" selected>4–4–2 · The balanced approach</option><option value="4-2-3-1">4–2–3–1 · Creative control</option><option value="3-5-2">3–5–2 · Width and numbers</option></select></fieldset>
+      </div>
+      <div class="setup-bottom"><span>90 seconds. A brand-new match.</span><button class="button button-primary" type="submit">Kick things off <span aria-hidden="true">↗</span></button></div>
+    </form>
+  </dialog>
+  <canvas id="confettiCanvas" aria-hidden="true"></canvas>
+</body>
+</html>
