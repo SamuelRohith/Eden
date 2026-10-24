@@ -56,3 +56,13 @@ Major events pause after they complete (shots finish travelling before their goa
 The large review dialog uses two symmetric sections for attacking build-up and defending context, derived from recorded passes, carries and saved positions. It offers at most four actions with at most two green choices and a red possession-reset choice. Percentages estimate scoring directly or through a hypothetical follow-up shot; they are uncalibrated heuristics, not real-world probabilities. Penalties only offer the valid penalty action.
 
 Reviews are cached by event ID and remain accessible during and after the match, until another match starts or the page is refreshed. Closing review leaves play paused with a separate Resume control. There is no duplicate pitch in the review.
+
+## Autoplay, handballs and reduced teams
+
+The Autoplay switch is off by default. When enabled, each major-event popup remains visible for two seconds before resuming. Opening a review cancels the timer so it remains available until the viewer explicitly resumes. Turning Autoplay off cancels the pending automatic resume.
+
+Two yellows dismiss a player. Direct reds occur on 1% of simulated fouls; yellow-card outcomes occupy the next 35% of the card roll. Handballs can lead to free kicks outside the penalty area or penalties inside it.
+
+After a dismissal, remaining outfield players redistribute across formation rows: attacking slots are sacrificed first to preserve defensive and midfield coverage. Shirt numbers and skill ratings stay fixed. The scoreboard shows the adjusted formation and remaining player count.
+
+The live badge has been removed and the original responsive pitch aspect ratios restored.

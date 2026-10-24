@@ -14,6 +14,18 @@ let field = null;
 let confettiId = null;
 let displayedSecond = -1;
 let stoppedEvent = null;
+let autoplayTimer = null;
+function cancelAutoplay() { clearTimeout(autoplayTimer); autoplayTimer = null; }
+function scheduleAutoplay() {
+  cancelAutoplay();
+  if ($('autoplay').checked && simulation?.paused && !simulation.finished && !$('reviewDialog').open && !$('eventOverlay').hidden) {
+    autoplayTimer = setTimeout(() => { autoplayTimer = null; if ($('autoplay').checked && !$('reviewDialog').open) resumeMatch(); }, 2000);
+  }
+}
+$('autoplay').addEventListener('change', () => {
+  $('autoplayState').textContent = $('autoplay').checked ? 'On' : 'Off';
+  scheduleAutoplay();
+});
 const reviewCache = new Map();
 
 function openSetup() { if (!dialog.open) dialog.showModal(); }
@@ -46,6 +58,7 @@ $('setupForm').addEventListener('submit', event => {
 });
 
 function startMatch(config) {
+  cancelAutoplay();
   if (animationId) cancelAnimationFrame(animationId);
   if (confettiId) cancelAnimationFrame(confettiId);
   clearTimeout(goalTimeout);
@@ -65,7 +78,7 @@ function startMatch(config) {
   document.body.classList.add('in-match');
   $('playControl').disabled = false;
   $('headerStatus').textContent = 'THE MATCH ROOM';
-  $('matchBadge').textContent = 'SIMULATION LIVE';
+
   $('commentaryLive').textContent = 'LIVE';
   $('pitchStatus').textContent = 'The match is under way';
   $('progressStatus').textContent = 'THE STORY IS UNFOLDING';
@@ -93,7 +106,7 @@ function animate(timestamp) {
   drawPitch();
   updateStats(simulation.paused);
   $('playControl').textContent = simulation.paused ? '▶ Play / resume match' : 'Pause match';
-  $('pauseNote').textContent = simulation.paused ? 'Paused. Review a green moment, then press Play.' : 'Major moments pause automatically for review.';
+  $('pauseNote').textContent = simulation.paused ? ($('autoplay').checked && !$('eventOverlay').hidden ? 'Autoplay · continuing after 2 seconds. Review to hold this moment.' : 'Paused. Review a green moment, then press Play.') : ($('autoplay').checked ? 'Autoplay on · event popups last 2 seconds.' : 'Major moments pause automatically for review.');
   if (simulation.finished) {
     animationId = null;
     finishMatch();
@@ -102,6 +115,10 @@ function animate(timestamp) {
 
 function updateStats(force = false) {
   const s = simulation;
+  ['home', 'away'].forEach((side, i) => {
+    const team = s.teams[i];
+    $(side + 'Formation').textContent = (team.currentFormation ?? team.formation).replaceAll('-', '–') + (team.dismissals ? ' · ' + (11 - team.dismissals) + ' players' : '');
+  });
   const totalMatchSeconds = Math.min(5400, Math.floor(s.elapsed * 60));
   const minute = Math.floor(totalMatchSeconds / 60);
   const seconds = totalMatchSeconds % 60;
@@ -172,6 +189,7 @@ function onMatchEvent(event) {
 }
 
 function finishMatch() {
+  cancelAutoplay();
   $('playControl').disabled = true;
   $('eventOverlay').hidden = true;
   const [home, away] = simulation.teams;
@@ -179,7 +197,7 @@ function finishMatch() {
   clearTimeout(goalTimeout);
   $('goalToast').hidden = true;
   $('finishPanel').hidden = false;
-  $('matchBadge').textContent = 'MATCH COMPLETE';
+
   $('commentaryLive').textContent = 'FULL TIME';
   $('pitchStatus').textContent = 'Full time. A story worth replaying.';
   $('pitchMinute').textContent = 'Final score · 90:00';
@@ -327,12 +345,14 @@ window.eden = { get match() { return simulation; } };
 
 
 function showEventStop(event) {
-  $('eventTitle').textContent = event.type.replace('throwin','Throw-in').replace('goalkick','Goal kick').replace('freekick','Free kick').toUpperCase();
+  $('eventTitle').textContent = (event.cause === 'handball' ? 'handball' : event.type).replace('throwin','Throw-in').replace('goalkick','Goal kick').replace('freekick','Free kick').toUpperCase();
   $('eventSummary').textContent = event.text;
   $('eventOverlay').hidden = false;
   $('pitchCanvas').classList.add('pitch-blurred');
+  scheduleAutoplay();
 }
 function resumeMatch() {
+  cancelAutoplay();
   if (!simulation || simulation.finished) return;
   $('reviewDialog').close();
   $('eventOverlay').hidden = true;
@@ -345,13 +365,14 @@ $('overlayReview').addEventListener('click', () => { if(stoppedEvent) showReview
 $('reviewResume').addEventListener('click', resumeMatch);
 $('playControl').addEventListener('click', () => {
   if(!simulation||simulation.finished)return;
-  if(simulation.paused)resumeMatch();else simulation.paused=true;
+  if(simulation.paused)resumeMatch();else { cancelAutoplay(); simulation.paused=true; }
 });
 $('closeReview').addEventListener('click', () => $('reviewDialog').close());
 $('reviewDialog').addEventListener('close', () => {
   if(!simulation?.finished) $('playControl').focus();
 });
 function showReview(event) {
+  cancelAutoplay();
   if(!simulation.finished) simulation.paused=true;
   $('eventOverlay').hidden=true;
   $('pitchCanvas').classList.remove('pitch-blurred');

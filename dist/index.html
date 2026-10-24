@@ -40,7 +40,6 @@
     </main>
 
     <main id="matchRoom" class="match-room" hidden>
-      <div class="room-heading"><span class="simulation-badge"><span class="status-dot"></span><span id="matchBadge">SIMULATION LIVE</span></span></div>
       <div class="match-layout">
         <aside class="match-sidebar">
           <section class="panel stats-panel" aria-labelledby="statsTitle">
@@ -70,7 +69,7 @@
             <div id="eventOverlay" class="event-overlay" hidden><div class="event-popover" role="region" aria-labelledby="eventTitle"><span class="eyebrow">PLAY STOPPED · MOMENT COMPLETE</span><h2 id="eventTitle"></h2><p id="eventSummary"></p><div class="event-actions"><button id="overlayResume" class="button button-primary" type="button">Resume match ▶</button><button id="overlayReview" class="button button-secondary" type="button">Review event ↗</button></div></div></div><div id="goalToast" class="goal-toast" hidden><span>GOOOAL!</span><strong id="goalScorer"></strong></div>
             <div class="pitch-bottom"><span><i class="tiny-pulse"></i><span id="pitchStatus">The match is under way</span></span><span id="pitchMinute">1 real second = 1 match minute</span></div>
           </div>
-          <div class="play-controls"><button id="playControl" class="button button-primary" type="button">Pause match</button><span id="pauseNote" role="status">Major moments pause automatically for review.</span></div><div class="match-progress"><div class="progress-top"><span id="progressStatus">THE STORY IS UNFOLDING</span><span id="realTimer">90 seconds remaining</span></div><div class="progress-track" role="progressbar" aria-label="Match progress" aria-valuemin="0" aria-valuemax="90" aria-valuenow="0" id="matchProgress"><div id="progressFill"></div></div><div class="progress-markers"><span>KICK-OFF</span><span>HALF TIME</span><span>FULL TIME</span></div></div>
+          <div class="play-controls"><label class="autoplay-toggle" for="autoplay"><input id="autoplay" type="checkbox" role="switch"><span class="toggle-track" aria-hidden="true"></span><span>Autoplay <b id="autoplayState">Off</b></span></label><button id="playControl" class="button button-primary" type="button">Pause match</button><span id="pauseNote" role="status">Major moments pause automatically for review.</span></div><div class="match-progress"><div class="progress-top"><span id="progressStatus">THE STORY IS UNFOLDING</span><span id="realTimer">90 seconds remaining</span></div><div class="progress-track" role="progressbar" aria-label="Match progress" aria-valuemin="0" aria-valuemax="90" aria-valuenow="0" id="matchProgress"><div id="progressFill"></div></div><div class="progress-markers"><span>KICK-OFF</span><span>HALF TIME</span><span>FULL TIME</span></div></div>
           <div class="match-footnote"><span>All players, events and results are simulated.</span><span>RED vs BLUE <i>·</i> 22 STARTING PLAYERS</span></div>
         </section>
       </div>

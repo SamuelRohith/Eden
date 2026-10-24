@@ -267,7 +267,7 @@ export class MatchSimulator extends CoreSimulator {
     this.players.forEach(p=>{
       p.role=p.keeper?'Goalkeeper':p.baseX<35?'Defender':p.baseX<70?'Midfielder':'Attacker';
       p.finishing=({Goalkeeper:.12,Defender:.35,Midfielder:.56,Attacker:.79})[p.role]+this.range(-.09,.09);
-      p.dribbling=this.range(.4,.85);p.yellowCards=0;p.sentOff=false;
+      p.dribbling=this.range(.4,.85);p.yellowCards=0;p.sentOff=false;p.originalBaseX=p.baseX;p.originalBaseY=p.baseY;
     });
   }
   active(team) { return this.players.filter(p=>p.team===team&&!p.sentOff); }
@@ -335,11 +335,35 @@ export class MatchSimulator extends CoreSimulator {
     this.pending=()=>{taker.x=clamp(x,2,98);taker.y=clamp(y,4,96);this.ball={x:taker.x,y:taker.y,z:0};this.nextAction=this.elapsed+.55;};
     this.emit(type,text,{team,player:taker.number,review:evidence??this.review(taker)});
   }
-  foul(p,defender) {
+  rebalance(teamId) {
+    const team=this.teams[teamId];
+    const rows=team.formation.split('-').map(Number);
+    const remaining=this.active(teamId).filter(p=>!p.keeper).sort((a,b)=>a.originalBaseX-b.originalBaseX||a.originalBaseY-b.originalBaseY);
+    let remove=10-remaining.length;
+    // Sacrifice attacking slots first; preserve a defensive line and midfield cover.
+    while(remove>0) {
+      let row=rows.length-1;
+      while(row>0 && rows[row]<=1) row--;
+      if(rows[row]===0) break;
+      rows[row]--; remove--;
+    }
+    const rowXs=rows.length===4?[24,41,61,78]:[25,49,76];
+    let at=0;
+    rows.forEach((count,row)=>{
+      for(let j=0;j<count;j++){
+        const player=remaining[at++];
+        player.baseX=rowXs[row];player.baseY=count===1?50:15+70*j/(count-1);
+      }
+    });
+    team.currentFormation=rows.filter(n=>n>0).join('-');
+    team.dismissals=10-remaining.length;
+    return team.currentFormation;
+  }
+  foul(p,defender,cause='challenge') {
     const evidence=this.review(p);
     const penalty=relativeX(p,p.team)>84.3&&p.y>20.4&&p.y<79.6;
-    const reason=this.pick(['clips the runner’s heel while chasing the ball','arrives late and catches the ankle','pulls the shirt as the attacker turns']);
-    const roll=this.random();const card=roll<.045?'red':roll<.36?'yellow':null;
+    const reason=cause==='handball'?'blocks the ball with an outstretched arm':this.pick(['clips the runner’s heel while chasing the ball','arrives late and catches the ankle','pulls the shirt as the attacker turns']);
+    const roll=this.random();const card=roll<.01?'red':roll<.36?'yellow':null;
     this.pending=()=>{
       const award=()=>{
         const taker=this.active(p.team).filter(o=>!o.keeper).sort((a,b)=>b.finishing-a.finishing)[0];
@@ -347,21 +371,23 @@ export class MatchSimulator extends CoreSimulator {
         taker.x=penalty?(p.team===0?89.5:10.5):p.x;taker.y=penalty?50:p.y;
         this.ball={x:taker.x,y:taker.y,z:0};
         this.pending=()=>{if(penalty||relativeX(taker,taker.team)>62)this.takeShot(penalty?'penalty':'freekick');else this.nextAction=this.elapsed+.4;};
-        this.emit(penalty?'penalty':'freekick',(penalty?'Penalty':'Free kick')+' to '+this.teams[p.team].name+'. #'+taker.number+' stands over the ball after the late challenge.',{team:p.team,player:taker.number,review:this.review(taker,penalty?'penalty':'freekick')});
+        this.emit(penalty?'penalty':'freekick',(penalty?'Penalty':'Free kick')+' to '+this.teams[p.team].name+'. #'+taker.number+' stands over the ball after the '+(cause==='handball'?'handball.':'late challenge.'),{team:p.team,player:taker.number,review:this.review(taker,penalty?'penalty':'freekick')});
       };
       if(card){
         if(card==='yellow')defender.yellowCards++;
         const red=card==='red'||defender.yellowCards>=2;defender.sentOff=red;
+        if(red) this.rebalance(defender.team);
         this.pending=award;
-        this.emit(red?'red':'yellow','#'+defender.number+' of '+this.teams[defender.team].name+': '+(red?(card==='yellow'?'second yellow, then red — sent off.':'straight red for a dangerous challenge — sent off.'):'yellow card for the late challenge.'),{team:defender.team,player:defender.number,review:evidence});
+        this.emit(red?'red':'yellow','#'+defender.number+' of '+this.teams[defender.team].name+': '+(red?(card==='yellow'?'second yellow, then red — sent off.':(cause==='handball'?'straight red for deliberately denying a clear goal chance by hand — sent off.':'straight red for a dangerous challenge — sent off.')):(cause==='handball'?'yellow card for stopping the attack by hand.':'yellow card for the late challenge.')),{team:defender.team,player:defender.number,review:evidence});
       }else award();
     };
-    this.emit('foul','Foul! #'+defender.number+' of '+this.teams[defender.team].name+' '+reason+' on #'+p.number+'. '+(penalty?'Contact is inside the area.':'Play stops at the point of contact.'),{team:p.team,player:p.number,review:evidence});
+    this.emit('foul',(cause==='handball'?'Handball! #':'Foul! #')+defender.number+' of '+this.teams[defender.team].name+' '+reason+' while challenging #'+p.number+' of '+this.teams[p.team].name+'. '+(penalty?'Contact is inside the area.':'Play stops at the point of contact.'),{team:p.team,player:p.number,offender:defender.number,cause,review:evidence});
   }
   nextPlay() {
     const p=this.possessor;
     const opponents=this.active(1-p.team).filter(o=>!o.keeper).sort((a,b)=>distance(a,p)-distance(b,p));
     const nearest=opponents[0],roll=this.random();
+    if(!p.keeper&&nearest&&distance(nearest,p)<22&&roll<.025){this.foul(p,nearest,'handball');return;}
     if(!p.keeper&&nearest&&distance(nearest,p)<22&&roll<.16){this.foul(p,nearest);return;}
     if(!p.keeper&&roll<.23){
       this.restart('throwin',1-p.team,p.x,p.y<50?0:100,'#'+p.number+' tries to beat the defender down the flank, but the final touch runs over the touchline. Throw-in to '+this.teams[1-p.team].name+'.',this.review(p));return;
