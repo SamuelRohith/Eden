@@ -5,7 +5,7 @@ const clamp = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
 const distance = (a, b) => Math.hypot(a.x - b.x, a.y - b.y);
 const relativeX = (p, team) => team === 0 ? p.x : 100 - p.x;
 
-export class MatchSimulator {
+class CoreSimulator {
   constructor(config, onEvent = () => {}) {
     this.config = config;
     this.onEvent = onEvent;
@@ -256,5 +256,144 @@ export class MatchSimulator {
     this.finished = true;
     this.flight = null;
     this.emit('fulltime', `Full time! ${this.teams[0].name} ${this.teams[0].score}–${this.teams[1].score} ${this.teams[1].name}. The final whistle brings our 90-second story to a close.`, { score: this.teams.map(t => t.score) });
+  }
+}
+
+
+export class MatchSimulator extends CoreSimulator {
+  constructor(config,onEvent) {
+    super(config,onEvent);
+    this.paused=false; this.pending=null;
+    this.players.forEach(p=>{
+      p.role=p.keeper?'Goalkeeper':p.baseX<35?'Defender':p.baseX<70?'Midfielder':'Attacker';
+      p.finishing=({Goalkeeper:.12,Defender:.35,Midfielder:.56,Attacker:.79})[p.role]+this.range(-.09,.09);
+      p.dribbling=this.range(.4,.85);p.yellowCards=0;p.sentOff=false;
+    });
+  }
+  active(team) { return this.players.filter(p=>p.team===team&&!p.sentOff); }
+  chance(p,kind='open') {
+    const d=distance(p,{x:p.team===0?100:0,y:50});
+    const pressure=this.active(1-p.team).filter(o=>!o.keeper&&distance(o,p)<13).length;
+    return clamp(kind==='penalty'?.67+p.finishing*.17:.08+p.finishing*.38+(1-d/100)*.18-pressure*.055-Math.abs(p.y-50)/100-(kind==='freekick'?.07:0),.03,.88);
+  }
+  review(p=this.possessor,kind='open') {
+    if(!p?.role)return null;
+    const opponents=this.active(1-p.team);
+    const pressure=opponents.filter(o=>!o.keeper&&distance(o,p)<13).length;
+    const passes=this.active(p.team).filter(o=>o!==p&&!o.keeper).map(o=>{
+      const nearest=Math.min(...opponents.map(d=>distance(d,o)));
+      return {o,nearest,value:relativeX(o,p.team)+nearest};
+    }).sort((a,b)=>b.value-a.value).slice(0,2).map(({o,nearest})=>({
+      action:'Pass to #'+o.number,detail:o.role+', '+distance(p,o).toFixed(0)+' pitch units away; nearest opponent '+nearest.toFixed(0)+' units.',
+      probability:clamp(.9-distance(p,o)*.004-(nearest<10?.2:0),.15,.95),metric:'estimated completion'
+    }));
+    return {player:'#'+p.number+' · '+this.teams[p.team].name,role:p.role,finishing:p.finishing,pressure,kind,
+      explanation:p.role+' with '+Math.round(p.finishing*100)+'/100 finishing. '+pressure+' opponent(s) within 13 pitch units.',
+      alternatives:[{action:kind==='penalty'?'Take the penalty':kind==='freekick'?'Shoot from the free kick':'Shoot',detail:'Adjusted for finishing, distance, angle and pressure.',probability:this.chance(p,kind),metric:'estimated scoring'},
+      ...(kind==='penalty'?[]:passes),...(kind==='open'?[{action:'Dribble forward',detail:'Retain the ball while advancing against nearby opponents.',probability:clamp(.5+p.dribbling*.3-pressure*.12,.12,.9),metric:'estimated retention'}]:[])],
+      snapshot:{ball:{...this.ball},players:this.players.filter(o=>!o.sentOff).map(o=>({id:o.id,team:o.team,number:o.number,x:o.x,y:o.y}))}};
+  }
+  emit(type,text,extra={}) {
+    const key=['goal','shot','foul','freekick','penalty','throwin','goalkick','yellow','red','tackle'].includes(type);
+    if(key)this.paused=true;
+    return super.emit(type,text,{key,review:key?(extra.review??this.review()):null,...extra});
+  }
+  advance(dt) {
+    if(this.paused||!Number.isFinite(dt)||dt<=0)return;
+    let remaining=Math.min(dt,this.duration-this.elapsed);
+    while(remaining>.000001&&!this.paused&&!this.finished&&this.started){
+      const step=Math.min(.04,remaining);this.step(step);remaining-=step;
+    }
+  }
+  resume() {
+    if(this.finished)return;
+    this.paused=false;const action=this.pending;this.pending=null;if(action)action();
+  }
+  kickoff(team,reposition=true) {
+    const all=this.players;this.players=all.filter(p=>!p.sentOff);
+    super.kickoff(team,reposition);this.players=all;this.lastMove=null;
+  }
+  movePlayers(dt) {
+    const all=this.players;this.players=all.filter(p=>!p.sentOff);
+    super.movePlayers(dt);this.players=all;
+  }
+  restart(type,team,x,y,text,evidence) {
+    this.flight=null;this.possession=team;this.phase=.12;this.passesThisAttack=0;this.lastMove=null;
+    const taker=type==='goalkick'?this.active(team).find(p=>p.keeper):this.active(team).filter(p=>!p.keeper).sort((a,b)=>distance(a,{x,y})-distance(b,{x,y}))[0];
+    this.possessor=taker;this.ball={x,y,z:0};
+    this.pending=()=>{taker.x=clamp(x,2,98);taker.y=clamp(y,4,96);this.ball={x:taker.x,y:taker.y,z:0};this.nextAction=this.elapsed+.55;};
+    this.emit(type,text,{team,player:taker.number,review:evidence??this.review(taker)});
+  }
+  foul(p,defender) {
+    const evidence=this.review(p);
+    const penalty=relativeX(p,p.team)>84.3&&p.y>20.4&&p.y<79.6;
+    const reason=this.pick(['clips the runner’s heel while chasing the ball','arrives late and catches the ankle','pulls the shirt as the attacker turns']);
+    const roll=this.random();const card=roll<.045?'red':roll<.36?'yellow':null;
+    this.pending=()=>{
+      const award=()=>{
+        const taker=this.active(p.team).filter(o=>!o.keeper).sort((a,b)=>b.finishing-a.finishing)[0];
+        this.possessor=taker;
+        taker.x=penalty?(p.team===0?89.5:10.5):p.x;taker.y=penalty?50:p.y;
+        this.ball={x:taker.x,y:taker.y,z:0};
+        this.pending=()=>{if(penalty||relativeX(taker,taker.team)>62)this.takeShot(penalty?'penalty':'freekick');else this.nextAction=this.elapsed+.4;};
+        this.emit(penalty?'penalty':'freekick',(penalty?'Penalty':'Free kick')+' to '+this.teams[p.team].name+'. #'+taker.number+' stands over the ball after the late challenge.',{team:p.team,player:taker.number,review:this.review(taker,penalty?'penalty':'freekick')});
+      };
+      if(card){
+        if(card==='yellow')defender.yellowCards++;
+        const red=card==='red'||defender.yellowCards>=2;defender.sentOff=red;
+        this.pending=award;
+        this.emit(red?'red':'yellow','#'+defender.number+' of '+this.teams[defender.team].name+': '+(red?(card==='yellow'?'second yellow, then red — sent off.':'straight red for a dangerous challenge — sent off.'):'yellow card for the late challenge.'),{team:defender.team,player:defender.number,review:evidence});
+      }else award();
+    };
+    this.emit('foul','Foul! #'+defender.number+' of '+this.teams[defender.team].name+' '+reason+' on #'+p.number+'. '+(penalty?'Contact is inside the area.':'Play stops at the point of contact.'),{team:p.team,player:p.number,review:evidence});
+  }
+  nextPlay() {
+    const p=this.possessor;
+    const opponents=this.active(1-p.team).filter(o=>!o.keeper).sort((a,b)=>distance(a,p)-distance(b,p));
+    const nearest=opponents[0],roll=this.random();
+    if(!p.keeper&&nearest&&distance(nearest,p)<22&&roll<.16){this.foul(p,nearest);return;}
+    if(!p.keeper&&roll<.23){
+      this.restart('throwin',1-p.team,p.x,p.y<50?0:100,'#'+p.number+' tries to beat the defender down the flank, but the final touch runs over the touchline. Throw-in to '+this.teams[1-p.team].name+'.',this.review(p));return;
+    }
+    if(!p.keeper&&roll<.36){
+      this.phase=Math.min(.95,this.phase+.16);p.x=clamp(p.x+(p.team===0?5:-5),2,98);
+      this.lastMove={player:p.id,type:'dribble'};this.ball.x=p.x;this.ball.y=p.y;this.nextAction=this.elapsed+.7;
+      this.emit('dribble','#'+p.number+' drops a shoulder and carries the ball into space. The defence has to turn.',{team:p.team,player:p.number});return;
+    }
+    if(!p.keeper&&nearest&&distance(nearest,p)<16&&roll<.43){
+      const review=this.review(p);this.possessor=nearest;this.possession=nearest.team;this.phase=.1;this.passesThisAttack=0;this.lastMove=null;this.nextAction=this.elapsed+.6;
+      this.emit('tackle','#'+nearest.number+' times the tackle on #'+p.number+' and wins the ball cleanly. A counterattack is on.',{team:nearest.team,player:nearest.number,review});return;
+    }
+    if(!p.keeper&&(this.passesThisAttack>=4||(this.phase>.64&&this.passesThisAttack>=2))){this.takeShot();return;}
+    const ownX=relativeX(p,p.team);
+    let receivers=this.active(p.team).filter(o=>o!==p&&!o.keeper&&relativeX(o,p.team)>=ownX-12);
+    if(!receivers.length)receivers=this.active(p.team).filter(o=>o!==p&&!o.keeper);
+    const target=this.pick(receivers);
+    const defenders=this.active(1-p.team).filter(o=>!o.keeper).sort((a,b)=>distance(a,target)-distance(b,target));
+    const intercepted=defenders.length>0&&this.random()<.12&&distance(defenders[0],target)<19;
+    this.lastMove=null;
+    this.flight={type:'pass',team:p.team,from:p,target:intercepted?defenders[0]:target,intended:target,intercepted,start:this.elapsed,duration:this.range(.32,.58),fromX:this.ball.x,fromY:this.ball.y};
+  }
+  takeShot(kind='open') {
+    const p=this.possessor,review=this.review(p,kind),probability=this.chance(p,kind),roll=this.random();
+    const outcome=roll<probability?'goal':roll<probability+(1-probability)*.68?'saved':'wide';
+    const keeper=this.active(1-p.team).find(o=>o.keeper);this.teams[p.team].shots++;
+    const style=kind==='penalty'?'penalty':kind==='freekick'?'curling free kick':this.lastMove?.player===p.id?'shot after a driving dribble':this.pick(['powerful strike','low drive','placed finish','rising shot']);
+    this.flight={type:'shot',team:p.team,from:p,start:this.elapsed,duration:this.range(.4,.62),fromX:this.ball.x,fromY:this.ball.y,toX:outcome==='saved'?keeper.x:p.team===0?100:0,toY:outcome==='saved'?keeper.y:outcome==='wide'?this.pick([30,70]):this.range(45,55),outcome,keeper,style,review,probability};
+    this.emit('shot','#'+p.number+' of '+this.teams[p.team].name+' attempts a '+style+'. '+Math.round(probability*100)+'% estimated scoring chance.',{team:p.team,player:p.number,review,probability});
+  }
+  resolveShot(f) {
+    const opponent=1-f.team;this.lastMove=null;
+    if(f.outcome==='goal'){
+      this.teams[f.team].score++;this.restartAt=this.elapsed+1.15;this.restartTeam=opponent;this.possession=opponent;
+      this.emit('goal','GOAL! #'+f.from.number+' of '+this.teams[f.team].name+' finds the net with a '+f.style+'. The keeper cannot reach it!',{team:f.team,player:f.from.number,score:this.teams.map(t=>t.score),review:f.review});
+    }else if(f.outcome==='wide'){
+      this.restart('goalkick',opponent,opponent===0?7:93,50,'#'+f.from.number+'’s '+f.style+' flashes beyond the post and over the goal line. Goal kick to '+this.teams[opponent].name+'.',f.review);
+      this.ball={x:f.toX,y:f.toY,z:0};
+    }else{
+      this.possession=opponent;this.phase=.1;this.passesThisAttack=0;this.possessor=f.keeper;
+      this.ball={x:f.keeper.x,y:f.keeper.y,z:0};this.nextAction=this.elapsed+.7;
+      this.emit('save','#1 of '+this.teams[opponent].name+' gets behind the '+f.style+' and holds it.',{team:opponent,player:1});
+    }
   }
 }

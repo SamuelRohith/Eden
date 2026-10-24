@@ -22,7 +22,7 @@
       <section class="hero-copy">
         <div class="eyebrow"><span></span> WELCOME TO THE MATCH LAB</div>
         <h1>Every match<br>has a <span>story.</span></h1>
-        <p class="hero-description">Give two teams a name. Set their shape. Watch 90 minutes of football unfold in just 90 seconds.</p>
+        <p class="hero-description">Give two teams a name. Set their shape. Watch 90 minutes of football unfold in 90 seconds of play. Pause the big moments and explore the options.</p>
         <button id="runSimulation" class="button button-primary button-large" type="button">Run The Simulation <span aria-hidden="true">↗</span></button>
         <div class="hero-details"><span><b>22</b> players</span><i></i><span><b>90</b> seconds</span><i></i><span>A new story, every time</span></div>
       </section>
@@ -70,8 +70,8 @@
             <div id="goalToast" class="goal-toast" hidden><span>GOOOAL!</span><strong id="goalScorer"></strong></div>
             <div class="pitch-bottom"><span><i class="tiny-pulse"></i><span id="pitchStatus">The match is under way</span></span><span id="pitchMinute">1 real second = 1 match minute</span></div>
           </div>
-          <div class="match-progress"><div class="progress-top"><span id="progressStatus">THE STORY IS UNFOLDING</span><span id="realTimer">90 seconds remaining</span></div><div class="progress-track" role="progressbar" aria-label="Match progress" aria-valuemin="0" aria-valuemax="90" aria-valuenow="0" id="matchProgress"><div id="progressFill"></div></div><div class="progress-markers"><span>KICK-OFF</span><span>HALF TIME</span><span>FULL TIME</span></div></div>
-          <div class="match-footnote"><span>All players, events and results are simulated.</span><span>RED vs BLUE <i>·</i> 22 PLAYERS ON THE PITCH</span></div>
+          <div class="play-controls"><button id="playControl" class="button button-primary" type="button">Pause match</button><span id="pauseNote" role="status">Major moments pause automatically for review.</span></div><section id="eventReview" class="panel event-review" hidden aria-labelledby="reviewTitle"><div class="section-heading"><h2 id="reviewTitle">Moment review</h2><button id="closeReview" class="button button-secondary" type="button">Close review</button></div><p id="reviewText"></p><canvas id="reviewCanvas" width="700" height="340" role="img" aria-label="Positions at the selected event"></canvas><p id="reviewContext"></p><div id="reviewOptions"></div><p class="review-note">Synthetic model estimates, not real match predictions. Percentages measure different outcomes and do not add up to 100%. Reviewing an option does not alter the match.</p></section><div class="match-progress"><div class="progress-top"><span id="progressStatus">THE STORY IS UNFOLDING</span><span id="realTimer">90 seconds remaining</span></div><div class="progress-track" role="progressbar" aria-label="Match progress" aria-valuemin="0" aria-valuemax="90" aria-valuenow="0" id="matchProgress"><div id="progressFill"></div></div><div class="progress-markers"><span>KICK-OFF</span><span>HALF TIME</span><span>FULL TIME</span></div></div>
+          <div class="match-footnote"><span>All players, events and results are simulated.</span><span>RED vs BLUE <i>·</i> 22 STARTING PLAYERS</span></div>
         </section>
       </div>
     </main>

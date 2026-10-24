@@ -54,6 +54,8 @@ function startMatch(config) {
   $('reviewActions').hidden = true;
   $('goalToast').hidden = true;
   $('commentary').replaceChildren();
+  $('eventReview').hidden = true;
+  $('playControl').disabled = false;
   $('headerStatus').textContent = 'THE MATCH ROOM';
   $('matchBadge').textContent = 'SIMULATION LIVE';
   $('commentaryLive').textContent = 'LIVE';
@@ -81,7 +83,9 @@ function animate(timestamp) {
   lastTimestamp = timestamp;
   simulation.advance(dt);
   drawPitch();
-  updateStats();
+  updateStats(simulation.paused);
+  $('playControl').textContent = simulation.paused ? '▶ Play / resume match' : 'Pause match';
+  $('pauseNote').textContent = simulation.paused ? 'Paused. Review a green moment, then press Play.' : 'Major moments pause automatically for review.';
   if (simulation.finished) {
     animationId = null;
     finishMatch();
@@ -117,6 +121,12 @@ function updateStats(force = false) {
 function onMatchEvent(event) {
   const entry = document.createElement('article');
   entry.className = `commentary-item ${event.type}`;
+  if (event.key) {
+    entry.classList.add('key-event');
+    const open = document.createElement('button');
+    open.type = 'button'; open.className = 'review-moment'; open.textContent = 'Review moment ↗';
+    open.addEventListener('click', () => showReview(event)); entry.append(open);
+  }
   const time = document.createElement('span');
   time.className = 'commentary-time';
   time.textContent = `${Math.min(90, Math.floor(event.elapsed))}′`;
@@ -134,6 +144,7 @@ function onMatchEvent(event) {
   body.append(text);
   entry.append(time, body);
   $('commentary').prepend(entry);
+  if (event.key) showReview(event, false);
   // Keep the newest highlight visible while retaining the complete feed for review.
   $('commentary').scrollTop = 0;
   if (event.type === 'goal') {
@@ -152,6 +163,7 @@ function onMatchEvent(event) {
 }
 
 function finishMatch() {
+  $('playControl').disabled = true;
   const [home, away] = simulation.teams;
   updateStats(true);
   clearTimeout(goalTimeout);
@@ -223,7 +235,7 @@ function drawPitch() {
   [[0, 0, 0, Math.PI / 2], [100, 0, Math.PI / 2, Math.PI], [0, 100, -Math.PI / 2, 0], [100, 100, Math.PI, Math.PI * 1.5]].forEach(([px, py, a, b]) => { c.beginPath(); c.arc(x(px), y(py), cornerR, a, b); c.stroke(); });
   const radius = Math.max(6, Math.min(12.5, f.w * .0145));
   // Players are all drawn every frame. IDs and shirt numbers never change.
-  for (const p of simulation.players) {
+  for (const p of simulation.players.filter(p => !p.sentOff)) {
     const px = x(p.x), py = y(p.y);
     if (p === simulation.possessor && !simulation.flight && simulation.restartAt === null && !simulation.finished) {
       c.beginPath(); c.arc(px, py, radius + 4, 0, Math.PI * 2); c.strokeStyle = '#ffffff66'; c.lineWidth = 1; c.stroke();
@@ -232,6 +244,7 @@ function drawPitch() {
     c.fillStyle = colors[p.team]; c.beginPath(); c.arc(px, py, radius, 0, Math.PI * 2); c.fill();
     c.shadowColor = 'transparent'; c.shadowBlur = 0; c.shadowOffsetY = 0;
     c.strokeStyle = '#ffffffeb'; c.lineWidth = Math.max(1.1, radius * .14); c.stroke();
+    if (p.yellowCards) { c.fillStyle = '#ffe15a'; c.fillRect(px + radius - 3, py - radius - 4, 5, 8); }
     c.fillStyle = '#ffffff'; c.textAlign = 'center'; c.textBaseline = 'middle'; c.font = `700 ${Math.max(7, radius * .83)}px "DM Sans", sans-serif`; c.fillText(String(p.number), px, py + .45);
   }
   drawBall(x(simulation.ball.x), y(simulation.ball.y) - simulation.ball.z * 7, Math.max(5.4, radius * .62));
@@ -301,3 +314,42 @@ observer.observe(canvas);
 window.addEventListener('resize', resizePitch);
 // Useful for a future feed adapter and inspecting the generated match in DevTools.
 window.eden = { get match() { return simulation; } };
+
+$('playControl').addEventListener('click', () => {
+  if (!simulation || simulation.finished) return;
+  if (simulation.paused) simulation.resume();
+  else simulation.paused = true;
+  lastTimestamp = performance.now();
+});
+$('closeReview').addEventListener('click', () => { $('eventReview').hidden = true; });
+function showReview(event, scroll = true) {
+  if (!simulation.finished) simulation.paused = true;
+  $('eventReview').hidden = false;
+  $('reviewTitle').textContent = Math.floor(event.elapsed) + '′ · ' + event.type.toUpperCase();
+  $('reviewText').textContent = event.text;
+  const r = event.review;
+  $('reviewContext').textContent = r ? r.player + ' — ' + r.explanation : 'No action alternatives available.';
+  $('reviewOptions').replaceChildren();
+  if (r) r.alternatives.forEach(option => {
+    const card = document.createElement('article');
+    card.className = 'alternative-card';
+    const title = document.createElement('strong');
+    title.textContent = option.action + ' · ' + Math.round(option.probability * 100) + '% ' + option.metric;
+    const text = document.createElement('p'); text.textContent = option.detail;
+    card.append(title, text); $('reviewOptions').append(card);
+  });
+  const c = $('reviewCanvas').getContext('2d');
+  c.fillStyle = '#277852'; c.fillRect(0,0,700,340);
+  c.strokeStyle = '#ffffff88'; c.strokeRect(12,12,676,316);
+  c.beginPath(); c.moveTo(350,12); c.lineTo(350,328); c.stroke();
+  c.beginPath(); c.arc(350,170,44,0,Math.PI*2); c.stroke();
+  if (r) {
+    r.snapshot.players.forEach(p => {
+      const x=12+p.x*6.76,y=12+p.y*3.16;
+      c.fillStyle=colors[p.team];c.beginPath();c.arc(x,y,9,0,Math.PI*2);c.fill();
+      c.fillStyle='white';c.font='bold 10px sans-serif';c.textAlign='center';c.textBaseline='middle';c.fillText(p.number,x,y);
+    });
+    const b=r.snapshot.ball;c.fillStyle='white';c.beginPath();c.arc(12+b.x*6.76,12+b.y*3.16,4,0,Math.PI*2);c.fill();
+  }
+  if (scroll) $('eventReview').scrollIntoView({behavior:'smooth',block:'nearest'});
+}

@@ -38,3 +38,13 @@ This first prototype uses simple movement and event rules; it does not claim to 
 ```sh
 npm run check
 ```
+
+## Event reviews and player probabilities
+
+Players receive a formation-based role and an individual finishing rating (role baseline plus seeded variation). Open-play scoring estimates include finishing, goal distance, lateral angle and nearby opponents. Penalties use a separate estimate. These are demo heuristics, not calibrated football probabilities or xG.
+
+Fouls can lead to free kicks, penalties, yellows, direct reds or second-yellow dismissals. Dismissed players remain in the match record but are excluded from movement and selection. Throw-ins and goal kicks stop play and resume from the restart location.
+
+Key events appear green with a Review moment button. The match clock and player motion freeze until Play is pressed. The review panel preserves the event's positions and shows estimated shooting, passing and dribbling options (penalties only offer the penalty attempt). These options do not execute an alternate timeline. Shot and goal reviews share the pre-shot decision snapshot.
+
+The match lasts 90 seconds of playing time, plus as much review time as you need. All logic and commentary remain browser-local and rule based; no AI service or API keys are used.
