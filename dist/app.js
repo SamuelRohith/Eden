@@ -1,3 +1,4 @@
+import { buildAnalysis } from './analysis.js';
 import { MatchSimulator } from './simulator.js';
 
 const $ = id => document.getElementById(id);
@@ -12,6 +13,8 @@ let goalTimeout = null;
 let field = null;
 let confettiId = null;
 let displayedSecond = -1;
+let stoppedEvent = null;
+const reviewCache = new Map();
 
 function openSetup() { if (!dialog.open) dialog.showModal(); }
 $('runSimulation').addEventListener('click', openSetup);
@@ -54,7 +57,12 @@ function startMatch(config) {
   $('reviewActions').hidden = true;
   $('goalToast').hidden = true;
   $('commentary').replaceChildren();
-  $('eventReview').hidden = true;
+  $('eventOverlay').hidden = true;
+  $('pitchCanvas').classList.remove('pitch-blurred');
+  $('reviewDialog').close();
+  reviewCache.clear(); stoppedEvent = null;
+  $('headerMatchTitle').hidden = false;
+  document.body.classList.add('in-match');
   $('playControl').disabled = false;
   $('headerStatus').textContent = 'THE MATCH ROOM';
   $('matchBadge').textContent = 'SIMULATION LIVE';
@@ -123,9 +131,10 @@ function onMatchEvent(event) {
   entry.className = `commentary-item ${event.type}`;
   if (event.key) {
     entry.classList.add('key-event');
-    const open = document.createElement('button');
-    open.type = 'button'; open.className = 'review-moment'; open.textContent = 'Review moment ↗';
-    open.addEventListener('click', () => showReview(event)); entry.append(open);
+    entry.tabIndex = 0; entry.setAttribute('role','button');
+    entry.setAttribute('aria-label', 'Review ' + event.type + ' at ' + Math.floor(event.elapsed) + ' minutes');
+    entry.addEventListener('click', () => showReview(event));
+    entry.addEventListener('keydown', e => { if(e.key==='Enter'||e.key===' '){e.preventDefault();showReview(event);} });
   }
   const time = document.createElement('span');
   time.className = 'commentary-time';
@@ -144,14 +153,14 @@ function onMatchEvent(event) {
   body.append(text);
   entry.append(time, body);
   $('commentary').prepend(entry);
-  if (event.key) showReview(event, false);
+  if (event.key) { stoppedEvent = event; showEventStop(event); }
   // Keep the newest highlight visible while retaining the complete feed for review.
   $('commentary').scrollTop = 0;
   if (event.type === 'goal') {
     $('homeScore').textContent = event.score[0];
     $('awayScore').textContent = event.score[1];
     $('goalScorer').textContent = `#${event.player} · ${simulation.teams[event.team].name}`;
-    $('goalToast').hidden = false;
+    $('goalToast').hidden = true;
     $('pitchStatus').textContent = `Goal for ${simulation.teams[event.team].name}!`;
     clearTimeout(goalTimeout);
     goalTimeout = setTimeout(() => { $('goalToast').hidden = true; }, 1250);
@@ -164,6 +173,7 @@ function onMatchEvent(event) {
 
 function finishMatch() {
   $('playControl').disabled = true;
+  $('eventOverlay').hidden = true;
   const [home, away] = simulation.teams;
   updateStats(true);
   clearTimeout(goalTimeout);
@@ -315,41 +325,56 @@ window.addEventListener('resize', resizePitch);
 // Useful for a future feed adapter and inspecting the generated match in DevTools.
 window.eden = { get match() { return simulation; } };
 
-$('playControl').addEventListener('click', () => {
+
+function showEventStop(event) {
+  $('eventTitle').textContent = event.type.replace('throwin','Throw-in').replace('goalkick','Goal kick').replace('freekick','Free kick').toUpperCase();
+  $('eventSummary').textContent = event.text;
+  $('eventOverlay').hidden = false;
+  $('pitchCanvas').classList.add('pitch-blurred');
+}
+function resumeMatch() {
   if (!simulation || simulation.finished) return;
-  if (simulation.paused) simulation.resume();
-  else simulation.paused = true;
+  $('reviewDialog').close();
+  $('eventOverlay').hidden = true;
+  $('pitchCanvas').classList.remove('pitch-blurred');
+  simulation.resume();
   lastTimestamp = performance.now();
+}
+$('overlayResume').addEventListener('click', resumeMatch);
+$('overlayReview').addEventListener('click', () => { if(stoppedEvent) showReview(stoppedEvent); });
+$('reviewResume').addEventListener('click', resumeMatch);
+$('playControl').addEventListener('click', () => {
+  if(!simulation||simulation.finished)return;
+  if(simulation.paused)resumeMatch();else simulation.paused=true;
 });
-$('closeReview').addEventListener('click', () => { $('eventReview').hidden = true; });
-function showReview(event, scroll = true) {
-  if (!simulation.finished) simulation.paused = true;
-  $('eventReview').hidden = false;
-  $('reviewTitle').textContent = Math.floor(event.elapsed) + '′ · ' + event.type.toUpperCase();
-  $('reviewText').textContent = event.text;
-  const r = event.review;
-  $('reviewContext').textContent = r ? r.player + ' — ' + r.explanation : 'No action alternatives available.';
-  $('reviewOptions').replaceChildren();
-  if (r) r.alternatives.forEach(option => {
-    const card = document.createElement('article');
-    card.className = 'alternative-card';
-    const title = document.createElement('strong');
-    title.textContent = option.action + ' · ' + Math.round(option.probability * 100) + '% ' + option.metric;
-    const text = document.createElement('p'); text.textContent = option.detail;
-    card.append(title, text); $('reviewOptions').append(card);
-  });
-  const c = $('reviewCanvas').getContext('2d');
-  c.fillStyle = '#277852'; c.fillRect(0,0,700,340);
-  c.strokeStyle = '#ffffff88'; c.strokeRect(12,12,676,316);
-  c.beginPath(); c.moveTo(350,12); c.lineTo(350,328); c.stroke();
-  c.beginPath(); c.arc(350,170,44,0,Math.PI*2); c.stroke();
-  if (r) {
-    r.snapshot.players.forEach(p => {
-      const x=12+p.x*6.76,y=12+p.y*3.16;
-      c.fillStyle=colors[p.team];c.beginPath();c.arc(x,y,9,0,Math.PI*2);c.fill();
-      c.fillStyle='white';c.font='bold 10px sans-serif';c.textAlign='center';c.textBaseline='middle';c.fillText(p.number,x,y);
-    });
-    const b=r.snapshot.ball;c.fillStyle='white';c.beginPath();c.arc(12+b.x*6.76,12+b.y*3.16,4,0,Math.PI*2);c.fill();
+$('closeReview').addEventListener('click', () => $('reviewDialog').close());
+$('reviewDialog').addEventListener('close', () => {
+  if(!simulation?.finished) $('playControl').focus();
+});
+function showReview(event) {
+  if(!simulation.finished) simulation.paused=true;
+  $('eventOverlay').hidden=true;
+  $('pitchCanvas').classList.remove('pitch-blurred');
+  if(!reviewCache.has(event.id)) reviewCache.set(event.id, buildAnalysis(event,simulation.teams,simulation.players));
+  const data=reviewCache.get(event.id);
+  $('reviewTitle').textContent=Math.floor(event.elapsed)+'′ · '+event.type.replace('throwin','Throw-in').replace('goalkick','Goal kick').replace('freekick','Free kick').toUpperCase();
+  $('reviewText').textContent=event.text;
+  $('attackTitle').textContent=data.attackTitle;
+  $('defendTitle').textContent=data.defendTitle;
+  for(const side of ['attack','defend']){
+    const list=$(side+'Points');list.replaceChildren();
+    data[side+'Points'].forEach(point=>{const li=document.createElement('li');li.textContent=point;list.append(li);});
   }
-  if (scroll) $('eventReview').scrollIntoView({behavior:'smooth',block:'nearest'});
+  $('reviewOptions').replaceChildren();
+  data.options.forEach(option=>{
+    const card=document.createElement('article');card.className='alternative-card '+(option.tone??'neutral');
+    const title=document.createElement('strong');title.textContent=option.action;title.className='option-action';
+    const percent=document.createElement('b');percent.textContent=Math.round(option.probability*100)+'%';percent.className='option-percent';
+    const metric=document.createElement('span');metric.textContent='estimated goal chance';metric.className='option-metric';
+    const detail=document.createElement('p');detail.textContent=option.detail;
+    card.append(title,percent,metric,detail);$('reviewOptions').append(card);
+  });
+  $('reviewContext').textContent='Based on saved positions and the recorded build-up. Passing and dribbling estimates combine retaining possession with a hypothetical follow-up shot; opponent responses are not simulated.';
+  $('reviewResume').hidden=simulation.finished;
+  if(!$('reviewDialog').open)$('reviewDialog').showModal();
 }

@@ -15,7 +15,7 @@
     <header class="site-header">
       <a class="brand" href="./" aria-label="Eden home"><span class="brand-icon">E</span><span>EDEN<span class="brand-dot">.</span></span></a>
       <div class="header-meta"><span class="status-dot"></span><span id="headerStatus">THE MATCH LAB</span></div>
-      <span class="header-note">A little football. A lot of possibility.</span>
+      <span class="header-note">A little football. A lot of possibility.</span><h1 id="headerMatchTitle" hidden>Your match. In motion.</h1>
     </header>
 
     <main id="welcome" class="welcome">
@@ -40,7 +40,7 @@
     </main>
 
     <main id="matchRoom" class="match-room" hidden>
-      <div class="room-heading"><div><div class="eyebrow">EDEN / MATCH ROOM</div><h1>Your match. In motion.</h1></div><span class="simulation-badge"><span class="status-dot"></span><span id="matchBadge">SIMULATION LIVE</span></span></div>
+      <div class="room-heading"><span class="simulation-badge"><span class="status-dot"></span><span id="matchBadge">SIMULATION LIVE</span></span></div>
       <div class="match-layout">
         <aside class="match-sidebar">
           <section class="panel stats-panel" aria-labelledby="statsTitle">
@@ -67,10 +67,10 @@
           <div class="pitch-card">
             <div class="scoreboard"><div class="scoreboard-team home"><span class="score-team-dot red"></span><div><strong id="scoreHomeName">Red team</strong><span id="homeFormation">4–3–3</span></div></div><div class="score-center"><div class="score-number"><span id="homeScore">0</span><i>:</i><span id="awayScore">0</span></div><span id="matchClock" class="match-clock">00:00</span></div><div class="scoreboard-team away"><div><strong id="scoreAwayName">Blue team</strong><span id="awayFormation">4–4–2</span></div><span class="score-team-dot blue"></span></div></div>
             <canvas id="pitchCanvas" role="img" aria-label="Live pitch with 22 numbered players and a football"></canvas>
-            <div id="goalToast" class="goal-toast" hidden><span>GOOOAL!</span><strong id="goalScorer"></strong></div>
+            <div id="eventOverlay" class="event-overlay" hidden><div class="event-popover" role="region" aria-labelledby="eventTitle"><span class="eyebrow">PLAY STOPPED · MOMENT COMPLETE</span><h2 id="eventTitle"></h2><p id="eventSummary"></p><div class="event-actions"><button id="overlayResume" class="button button-primary" type="button">Resume match ▶</button><button id="overlayReview" class="button button-secondary" type="button">Review event ↗</button></div></div></div><div id="goalToast" class="goal-toast" hidden><span>GOOOAL!</span><strong id="goalScorer"></strong></div>
             <div class="pitch-bottom"><span><i class="tiny-pulse"></i><span id="pitchStatus">The match is under way</span></span><span id="pitchMinute">1 real second = 1 match minute</span></div>
           </div>
-          <div class="play-controls"><button id="playControl" class="button button-primary" type="button">Pause match</button><span id="pauseNote" role="status">Major moments pause automatically for review.</span></div><section id="eventReview" class="panel event-review" hidden aria-labelledby="reviewTitle"><div class="section-heading"><h2 id="reviewTitle">Moment review</h2><button id="closeReview" class="button button-secondary" type="button">Close review</button></div><p id="reviewText"></p><canvas id="reviewCanvas" width="700" height="340" role="img" aria-label="Positions at the selected event"></canvas><p id="reviewContext"></p><div id="reviewOptions"></div><p class="review-note">Synthetic model estimates, not real match predictions. Percentages measure different outcomes and do not add up to 100%. Reviewing an option does not alter the match.</p></section><div class="match-progress"><div class="progress-top"><span id="progressStatus">THE STORY IS UNFOLDING</span><span id="realTimer">90 seconds remaining</span></div><div class="progress-track" role="progressbar" aria-label="Match progress" aria-valuemin="0" aria-valuemax="90" aria-valuenow="0" id="matchProgress"><div id="progressFill"></div></div><div class="progress-markers"><span>KICK-OFF</span><span>HALF TIME</span><span>FULL TIME</span></div></div>
+          <div class="play-controls"><button id="playControl" class="button button-primary" type="button">Pause match</button><span id="pauseNote" role="status">Major moments pause automatically for review.</span></div><div class="match-progress"><div class="progress-top"><span id="progressStatus">THE STORY IS UNFOLDING</span><span id="realTimer">90 seconds remaining</span></div><div class="progress-track" role="progressbar" aria-label="Match progress" aria-valuemin="0" aria-valuemax="90" aria-valuenow="0" id="matchProgress"><div id="progressFill"></div></div><div class="progress-markers"><span>KICK-OFF</span><span>HALF TIME</span><span>FULL TIME</span></div></div>
           <div class="match-footnote"><span>All players, events and results are simulated.</span><span>RED vs BLUE <i>·</i> 22 STARTING PLAYERS</span></div>
         </section>
       </div>
@@ -87,6 +87,6 @@
       <div class="setup-bottom"><span>90 seconds. A brand-new match.</span><button class="button button-primary" type="submit">Kick things off <span aria-hidden="true">↗</span></button></div>
     </form>
   </dialog>
-  <canvas id="confettiCanvas" aria-hidden="true"></canvas>
+  <dialog id="reviewDialog" class="review-dialog" aria-labelledby="reviewTitle"><div class="review-dialog-header"><div><span class="eyebrow">EDEN / BROADCAST REVIEW</span><h2 id="reviewTitle"></h2></div><div class="review-dialog-actions"><button id="reviewResume" class="button button-primary" type="button">Resume match ▶</button><button id="closeReview" class="button button-secondary" type="button">Close review ×</button></div></div><p id="reviewText" class="review-event-text"></p><div class="review-sides"><section><span class="eyebrow">THE ATTACKING PICTURE</span><h3 id="attackTitle"></h3><ul id="attackPoints"></ul></section><section><span class="eyebrow">THE DEFENDING PICTURE</span><h3 id="defendTitle"></h3><ul id="defendPoints"></ul></section></div><div class="review-options-heading"><h3>The other possibilities</h3><span>From the decision before this event</span></div><div id="reviewOptions"></div><p id="reviewContext"></p><p class="review-note">Synthetic estimates, not calibrated xG. Green marks up to two options with the strongest immediate goal potential; red marks a safer reset with less immediate threat. These are possibilities, not guaranteed outcomes. Reviews stay available through full time.</p></dialog><canvas id="confettiCanvas" aria-hidden="true"></canvas>
 </body>
 </html>

@@ -287,16 +287,27 @@ export class MatchSimulator extends CoreSimulator {
       action:'Pass to #'+o.number,detail:o.role+', '+distance(p,o).toFixed(0)+' pitch units away; nearest opponent '+nearest.toFixed(0)+' units.',
       probability:clamp(.9-distance(p,o)*.004-(nearest<10?.2:0),.15,.95),metric:'estimated completion'
     }));
-    return {player:'#'+p.number+' · '+this.teams[p.team].name,role:p.role,finishing:p.finishing,pressure,kind,
+    return {playerId:p.id,team:p.team,player:'#'+p.number+' · '+this.teams[p.team].name,role:p.role,finishing:p.finishing,pressure,kind,
       explanation:p.role+' with '+Math.round(p.finishing*100)+'/100 finishing. '+pressure+' opponent(s) within 13 pitch units.',
       alternatives:[{action:kind==='penalty'?'Take the penalty':kind==='freekick'?'Shoot from the free kick':'Shoot',detail:'Adjusted for finishing, distance, angle and pressure.',probability:this.chance(p,kind),metric:'estimated scoring'},
       ...(kind==='penalty'?[]:passes),...(kind==='open'?[{action:'Dribble forward',detail:'Retain the ball while advancing against nearby opponents.',probability:clamp(.5+p.dribbling*.3-pressure*.12,.12,.9),metric:'estimated retention'}]:[])],
       snapshot:{ball:{...this.ball},players:this.players.filter(o=>!o.sentOff).map(o=>({id:o.id,team:o.team,number:o.number,x:o.x,y:o.y}))}};
   }
   emit(type,text,extra={}) {
-    const key=['goal','shot','foul','freekick','penalty','throwin','goalkick','yellow','red','tackle'].includes(type);
+    const key=['goal','foul','freekick','penalty','throwin','goalkick','yellow','red','tackle'].includes(type);
     if(key)this.paused=true;
-    return super.emit(type,text,{key,review:key?(extra.review??this.review()):null,...extra});
+    const review=key?(extra.review??this.review()):null;
+    if(review && !review.sequence) {
+      const recent=[];
+      for(let i=this.events.length-1;i>=0;i--){
+        const e=this.events[i];
+        if(this.elapsed-e.elapsed>12 || ['goal','kickoff'].includes(e.type))break;
+        if(['pass','dribble','shot','turnover','tackle'].includes(e.type))recent.unshift({type:e.type,team:e.team,player:e.player,receiver:e.receiver,text:e.text});
+      }
+      review.sequence=recent;
+      review.attackTeam=review.snapshot.players.find(p=>('#'+p.number+' · '+this.teams[p.team].name)===review.player)?.team??this.possession;
+    }
+    return super.emit(type,text,{key,review,...extra});
   }
   advance(dt) {
     if(this.paused||!Number.isFinite(dt)||dt<=0)return;

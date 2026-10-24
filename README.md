@@ -48,3 +48,11 @@ Fouls can lead to free kicks, penalties, yellows, direct reds or second-yellow d
 Key events appear green with a Review moment button. The match clock and player motion freeze until Play is pressed. The review panel preserves the event's positions and shows estimated shooting, passing and dribbling options (penalties only offer the penalty attempt). These options do not execute an alternate timeline. Shot and goal reviews share the pre-shot decision snapshot.
 
 The match lasts 90 seconds of playing time, plus as much review time as you need. All logic and commentary remain browser-local and rule based; no AI service or API keys are used.
+
+## Broadcast pause and review
+
+Major events pause after they complete (shots finish travelling before their goal or restart outcome stops play). A small pitch overlay offers Resume or Review. Green commentary cards are clickable and keyboard accessible without a separate review button.
+
+The large review dialog uses two symmetric sections for attacking build-up and defending context, derived from recorded passes, carries and saved positions. It offers at most four actions with at most two green choices and a red possession-reset choice. Percentages estimate scoring directly or through a hypothetical follow-up shot; they are uncalibrated heuristics, not real-world probabilities. Penalties only offer the valid penalty action.
+
+Reviews are cached by event ID and remain accessible during and after the match, until another match starts or the page is refreshed. Closing review leaves play paused with a separate Resume control. There is no duplicate pitch in the review.
