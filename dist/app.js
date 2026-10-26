@@ -14,6 +14,7 @@ let field = null;
 let confettiId = null;
 let displayedSecond = -1;
 let stoppedEvent = null;
+let tackleMarker = null;
 let autoplayTimer = null;
 function cancelAutoplay() { clearTimeout(autoplayTimer); autoplayTimer = null; }
 function scheduleAutoplay() {
@@ -59,6 +60,7 @@ $('setupForm').addEventListener('submit', event => {
 
 function startMatch(config) {
   cancelAutoplay();
+  tackleMarker = null;
   if (animationId) cancelAnimationFrame(animationId);
   if (confettiId) cancelAnimationFrame(confettiId);
   clearTimeout(goalTimeout);
@@ -119,6 +121,10 @@ function updateStats(force = false) {
     const team = s.teams[i];
     $(side + 'Formation').textContent = (team.currentFormation ?? team.formation).replaceAll('-', '–') + (team.dismissals ? ' · ' + (11 - team.dismissals) + ' players' : '');
   });
+  ['fouls','tackles','yellows','reds','corners'].forEach(k => {
+    $('home'+k).textContent = s.teams[0][k];
+    $('away'+k).textContent = s.teams[1][k];
+  });
   const totalMatchSeconds = Math.min(5400, Math.floor(s.elapsed * 60));
   const minute = Math.floor(totalMatchSeconds / 60);
   const seconds = totalMatchSeconds % 60;
@@ -170,7 +176,11 @@ function onMatchEvent(event) {
   body.append(text);
   entry.append(time, body);
   $('commentary').prepend(entry);
-  if (event.key) { stoppedEvent = event; showEventStop(event); }
+  if (event.stop) { stoppedEvent = event; showEventStop(event); }
+  if (event.type === 'tackle' || event.type === 'counterattack') {
+    const player = event.type === 'counterattack' ? simulation.possessor : simulation.players.find(p => p.team === event.team && p.number === event.player);
+    if (player) tackleMarker = {x:player.x,y:player.y,until:performance.now()+1600};
+  }
   // Keep the newest highlight visible while retaining the complete feed for review.
   $('commentary').scrollTop = 0;
   if (event.type === 'goal') {
@@ -181,6 +191,8 @@ function onMatchEvent(event) {
     $('pitchStatus').textContent = `Goal for ${simulation.teams[event.team].name}!`;
     clearTimeout(goalTimeout);
     goalTimeout = setTimeout(() => { $('goalToast').hidden = true; }, 1250);
+  } else if (event.type === 'reset') {
+    $('pitchStatus').textContent = 'Both teams returning to their own halves';
   } else if (event.type === 'shot') {
     $('pitchStatus').textContent = `#${event.player} has a go for ${simulation.teams[event.team].name}`;
   } else if (['save', 'turnover', 'kickoff'].includes(event.type)) {
@@ -276,6 +288,18 @@ function drawPitch() {
     c.fillStyle = '#ffffff'; c.textAlign = 'center'; c.textBaseline = 'middle'; c.font = `700 ${Math.max(7, radius * .83)}px "DM Sans", sans-serif`; c.fillText(String(p.number), px, py + .45);
   }
   drawBall(x(simulation.ball.x), y(simulation.ball.y) - simulation.ball.z * 7, Math.max(5.4, radius * .62));
+  if (tackleMarker && performance.now() < tackleMarker.until) {
+    const mx=Math.max(f.x+68,Math.min(x(tackleMarker.x),f.x+f.w-68));
+    const my=Math.max(f.y+24,y(tackleMarker.y)-30);
+    c.save(); c.fillStyle='#102e47aa'; c.fillRect(mx-67,my-12,134,25);
+    c.fillStyle='#fff'; c.font='600 10px sans-serif';c.textAlign='center'; c.textBaseline='middle';
+    c.fillText('COUNTERATTACK ↗',mx,my+1);c.restore();
+  }
+  if (simulation.setPiece) {
+    const sp=simulation.setPiece;
+    c.save();c.fillStyle='#ffffffdd';c.font='600 10px sans-serif';c.textAlign='center';
+    c.fillText('#'+sp.taker.number+' · '+sp.kind.toUpperCase(),Math.max(f.x+70,Math.min(x(sp.spot.x),f.x+f.w-70)),Math.max(f.y+15,y(sp.spot.y)-18));c.restore();
+  }
 }
 
 function line(x1, y1, x2, y2) { context.beginPath(); context.moveTo(x1, y1); context.lineTo(x2, y2); context.stroke(); }

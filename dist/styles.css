@@ -69,8 +69,10 @@ button:focus-visible {outline:3px solid #215ced;outline-offset:3px}
 .option-metric {font-size:10px;color:#73849d}
 .alternative-card.positive {background:#edf9f1;border-color:#a4dcb7}
 .positive .option-action,.positive .option-percent {color:#16733b}
-.alternative-card.safe {background:#fff2f2;border-color:#edbfc5}
-.safe .option-action,.safe .option-percent {color:#b84054}
+.alternative-card.safe {background:#edf4ff;border-color:#b6cef5}
+.alternative-card.risky {background:#fff2f2;border-color:#edbfc5}
+.safe .option-action,.safe .option-percent {color:#215ced}
+.risky .option-action,.risky .option-percent {color:#b84054}
 #reviewContext,.review-dialog .review-note {font-size:11px;line-height:1.65;color:#8190a4}
 @media(min-width:851px) and (max-height:800px) {.in-match .app-shell{padding:0 28px}.in-match .site-header{height:62px}.in-match .pitch-card canvas{height:54vh}.in-match .commentary-feed{height:23vh}.in-match .panel-description{margin:6px 0}.in-match .commentary-item{padding:10px}.in-match .match-footnote{margin-top:10px}}
 @media(max-width:850px) {#headerMatchTitle{font-size:18px}.review-sides{gap:12px}.review-dialog{padding:20px}#reviewOptions{grid-template-columns:1fr 1fr}.in-match .pitch-card canvas{height:430px}.review-dialog-header{align-items:flex-start}.review-dialog-actions{flex-direction:column}}
@@ -90,3 +92,7 @@ button:focus-visible {outline:3px solid #215ced;outline-offset:3px}
 .autoplay-toggle input:checked + .toggle-track::after {transform:translateX(14px)}
 .autoplay-toggle input:focus-visible + .toggle-track {outline:3px solid #85a9ff;outline-offset:3px}
 .autoplay-toggle b {color:var(--blue);font-size:11px}
+
+.discipline-row {padding:7px 0!important}
+.discipline-row strong {font-size:16px}
+.discipline-row span {font-size:10px}

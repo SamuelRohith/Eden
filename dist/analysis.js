@@ -12,7 +12,7 @@ export function buildAnalysis(event, teams, roster) {
   const scoring=p=>{
     const finishing=profile(p)?.finishing??.5;
     const pressure=defenders.filter(o=>o.number!==1&&dist(o,p)<13).length;
-    return clamp(.08+finishing*.38+(1-dist(p,{x:team===0?100:0,y:50})/100)*.18-pressure*.055-Math.abs(p.y-50)/100,.03,.88);
+    return clamp(.08+finishing*.38+(1-dist(p,{x:team===0?100:0,y:50})/100)*.18-pressure*.055-Math.abs(p.y-50)/100+(r.counterBonus??0),.03,.88);
   };
   const sequence=(r.sequence??[]).filter(e=>e.team===team);
   const passes=sequence.filter(e=>e.type==='pass');
@@ -41,10 +41,12 @@ export function buildAnalysis(event, teams, roster) {
         const completion=clamp(.9-dist(actor,forward)*.004-(defenders.some(d=>dist(d,forward)<10)?.2:0),.15,.95);
         options.push({action:'Pass to #'+forward.number,probability:completion*scoring(forward),detail:Math.round(completion*100)+'% estimated completion, followed by a shot from the receiver. Combined estimated chance of a goal.'});
       }
-      if(r.kind==='open')options.push({action:'Dribble forward',probability:clamp(.5+(profile(actor)?.dribbling??.5)*.3-r.pressure*.12,.12,.9)*Math.min(.88,scoring(actor)+.05),detail:'Estimated chance of keeping the ball through the dribble and scoring the following shot.'});
+      if(r.kind==='open')options.push({action:'Dribble forward',probability:clamp(.5+(profile(actor)?.dribbling??.5)*.3-r.pressure*.12,.12,.9)*Math.min(.88,scoring(actor)+.05),detail:'Riskier move: beat the defender while retaining possession, then attempt a shot.',tone:'risky'});
       if(back)options.push({action:'Pass back to #'+back.number,probability:clamp(.9-dist(actor,back)*.004,.15,.95)*scoring(back)*.25,detail:'Safer reset of possession; estimated immediate goal chance after a follow-up shot is lower.',tone:'safe'});
       options=options.slice(0,4);
-      options.filter(o=>o.tone!=='safe').sort((a,b)=>b.probability-a.probability).slice(0,2).forEach(o=>o.tone='positive');
+      options.filter(o=>!o.tone).sort((a,b)=>b.probability-a.probability).slice(0,2).forEach(o=>o.tone='positive');
+      const order={positive:0,safe:1,risky:2};
+      options.sort((a,b)=>(order[a.tone]??1)-(order[b.tone]??1));
     }
   }
   return {attackTitle:teams[team].name,defendTitle:teams[1-team].name,attackPoints,defendPoints,options};
