@@ -1,0 +1,10 @@
+.git/
+.venv/
+.env
+.env.*
+local.settings.json
+.data/
+**/__pycache__/
+tests/
+docs/
+*.log

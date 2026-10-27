@@ -193,7 +193,7 @@ class CoreSimulator {
         this.possession = f.target.team;
         this.phase = .15;
         this.passesThisAttack = 0;
-        this.emit('turnover', `#${f.target.number} of ${this.teams[f.target.team].name} intercepts the pass. A chance to break!`, { team: f.target.team, player: f.target.number });
+        this.emit('turnover', `#${f.target.number} of ${this.teams[f.target.team].name} intercepts the pass. A chance to break!`, { team: f.target.team, player: f.target.number, lostTeam:f.from.team, lostPlayer:f.from.number });
       } else {
         this.teams[f.team].passes++;
         this.phase = Math.min(.92, this.phase + this.range(.14, .23));
@@ -381,7 +381,7 @@ class EventSimulator extends CoreSimulator {
     }
     if(!p.keeper&&nearest&&distance(nearest,p)<16&&roll<.43){
       const review=this.review(p);this.possessor=nearest;this.possession=nearest.team;this.phase=.1;this.passesThisAttack=0;this.lastMove=null;this.nextAction=this.elapsed+.6;
-      this.emit('tackle','#'+nearest.number+' times the tackle on #'+p.number+' and wins the ball cleanly. A counterattack is on.',{team:nearest.team,player:nearest.number,review});return;
+      this.emit('tackle','#'+nearest.number+' times the tackle on #'+p.number+' and wins the ball cleanly. Play continues.',{team:nearest.team,player:nearest.number,review});return;
     }
     if(!p.keeper&&(this.passesThisAttack>=4||(this.phase>.64&&this.passesThisAttack>=2))){this.takeShot();return;}
     const ownX=relativeX(p,p.team);
@@ -563,26 +563,40 @@ export class MatchSimulator extends EventSimulator {
     }
     return r;
   }
-  beginCounter(team) {
-    if(this.lastSetPiece&&this.lastSetPiece.team!==team&&this.elapsed<this.lastSetPiece.until){
-      this.counterattack={team,until:this.elapsed+8,source:this.lastSetPiece.kind};
-      this.lastSetPiece=null;
-      this.emit('counterattack',this.teams[team].name+' break after defending the set piece. The opposition is still recovering; scoring estimates gain 6 percentage points for this short transition.',{team});
-    }else if(this.counterattack?.team!==team)this.counterattack=null;
+  beginCounter(team,recovery='tackle') {
+    const origin=this.lastSetPiece;
+    if(this.counterattack?.team!==team)this.counterattack=null;
+    // Eden's counter rule: a live free kick/corner must be recovered by the
+    // defending team. Ordinary open-play tackles never create this origin.
+    if(!origin||!['freekick','corner'].includes(origin.kind)||origin.team===team||
+      this.elapsed>=origin.until||this.setPiece||this.possession!==team||
+      this.possessor?.team!==team||this.possessor.sentOff)return false;
+    this.lastSetPiece=null;
+    this.counterattack={team,until:this.elapsed+8,source:origin.kind,recovery};
+    this.phase=Math.max(this.phase,.58);this.nextAction=this.elapsed+.2;
+    const source=origin.kind==='freekick'?'free kick':'corner';
+    this.emit('counterattack',this.teams[team].name+' win the ball after defending the '+source+' and break toward the opposite goal.',
+      {team,player:this.possessor.number,source:origin.kind,recovery,stop:false});
+    return true;
   }
   moveFlight() {
     const flight=this.flight;
     super.moveFlight();
-    if(flight?.type==='pass'&&flight.intercepted&&!this.flight)this.beginCounter(this.possession);
+    if(flight?.type==='pass'&&!this.flight){
+      if(flight.intercepted)this.beginCounter(this.possession,'interception');
+      if(this.counterBonus(this.possession)>0){this.phase=Math.max(this.phase,.58);this.nextAction=this.elapsed+.22;}
+    }
   }
   nextPlay() {
     const p=this.possessor;
     if(!p||p.sentOff||distance(p,this.ball)>2.5)return;
     const nearest=this.active(1-p.team).filter(o=>!o.keeper).sort((a,b)=>distance(a,p)-distance(b,p))[0];
     const roll=this.random();
-    // A nearby opponent approaches the carrier before any contact is resolved.
-    if(!p.keeper&&nearest&&distance(nearest,p)<6.5&&roll<.12){
-      this.motion={kind:'challenge',carrier:p,defender:nearest,cause:roll<.005?'handball':'challenge',foul:roll<.045,elapsed:0};
+    const fast=this.counterBonus(p.team)>0;
+    // Schedule one demo foul, but still approach the actual carrier before contact.
+    const foulDue=this.elapsed>22&&this.teams.reduce((n,t)=>n+t.fouls,0)===0;
+    if(!p.keeper&&nearest&&(foulDue||(distance(nearest,p)<6.5&&roll<.12))){
+      this.motion={kind:'challenge',carrier:p,defender:nearest,cause:!foulDue&&roll<.005?'handball':'challenge',foul:foulDue||roll<.045,elapsed:0};
       this.nextAction=Infinity;return;
     }
     // A heavy touch can cross a touchline only from an actual wide position.
@@ -592,21 +606,22 @@ export class MatchSimulator extends EventSimulator {
       this.nextAction=Infinity;return;
     }
     if(!p.keeper&&roll<.36){
-      const x=clamp(p.x+(p.team===0?5:-5),3,97);
+      const x=clamp(p.x+(p.team===0?1:-1)*(fast?9:5),3,97);
       this.motion={kind:'carry',carrier:p,to:{x,y:p.y},elapsed:0};
       this.lastMove={player:p.id,type:'dribble'};
       this.nextAction=Infinity;
-      this.emit('dribble','#'+p.number+' carries the ball forward with close touches.',{team:p.team,player:p.number});return;
+      this.emit('dribble','#'+p.number+(fast?' drives forward on the counterattack.':' carries the ball forward with close touches.'),{team:p.team,player:p.number});return;
     }
-    if(!p.keeper&&(this.passesThisAttack>=4||(this.phase>.64&&this.passesThisAttack>=2))){this.takeShot();return;}
+    if(!p.keeper&&((fast&&relativeX(p,p.team)>62&&this.passesThisAttack>=1)||this.passesThisAttack>=4||(this.phase>.64&&this.passesThisAttack>=2))){this.takeShot();return;}
     const ownX=relativeX(p,p.team);
     let receivers=this.active(p.team).filter(o=>o!==p&&!o.keeper&&relativeX(o,p.team)>=ownX-12);
     if(!receivers.length)receivers=this.active(p.team).filter(o=>o!==p&&!o.keeper);
-    const target=this.pick(receivers);
+    const forward=receivers.filter(o=>relativeX(o,p.team)>ownX+3).sort((a,b)=>relativeX(b,p.team)-relativeX(a,p.team));
+    const target=fast&&forward.length?forward[0]:this.pick(receivers);
     const defenders=this.active(1-p.team).filter(o=>!o.keeper).sort((a,b)=>distance(a,target)-distance(b,target));
     const intercepted=defenders.length>0&&this.random()<.12&&distance(defenders[0],target)<8;
     this.lastMove=null;
-    this.flight={type:'pass',team:p.team,from:p,target:intercepted?defenders[0]:target,intended:target,intercepted,start:this.elapsed,duration:Math.max(.4,distance(p,target)/65),fromX:this.ball.x,fromY:this.ball.y};
+    this.flight={type:'pass',team:p.team,from:p,target:intercepted?defenders[0]:target,intended:target,intercepted,start:this.elapsed,duration:Math.max(.3,distance(p,target)/(fast?85:65)),fromX:this.ball.x,fromY:this.ball.y};
   }
   foul(p,defender,cause='challenge') {
     if(this.flight||p!==this.possessor||p.team!==this.possession||distance(p,this.ball)>2.5||distance(p,defender)>2.2)return false;
@@ -669,7 +684,7 @@ export class MatchSimulator extends EventSimulator {
         this.motion=null;
         const spot={x:clamp(this.ball.x,0,100),y:clamp(this.ball.y,0,100)};
         if(m.restart==='throwin'){
-          this.restart('throwin',1-m.lastTouch,spot.x,spot.y,'The heavy touch by #'+m.player+' crosses the touchline. Throw-in to '+this.teams[1-m.lastTouch].name+'.',m.review);
+          this.restart('throwin',1-m.lastTouch,spot.x,spot.y,'The heavy touch by #'+m.player+' of '+this.teams[m.lastTouch].name+' crosses the touchline. Throw-in to '+this.teams[1-m.lastTouch].name+'.',m.review);
         }else if(m.restart==='corner'){
           this.awardCorner(m.team,spot);
         }
@@ -684,8 +699,8 @@ export class MatchSimulator extends EventSimulator {
         else{
           const review=this.review(m.carrier);
           this.possessor=m.defender;this.possession=m.defender.team;this.phase=.1;this.passesThisAttack=0;this.nextAction=this.elapsed+.6;
-          this.beginCounter(m.defender.team);
-          this.emit('tackle','#'+m.defender.number+' wins the ball directly from #'+m.carrier.number+'. Play continues.',{team:m.defender.team,player:m.defender.number,review});
+          this.emit('tackle','#'+m.defender.number+' wins the ball directly from #'+m.carrier.number+'. Play continues.',{team:m.defender.team,player:m.defender.number,lostTeam:m.carrier.team,lostPlayer:m.carrier.number,review});
+          this.beginCounter(m.defender.team,'tackle');
         }
       }
     }else{
@@ -760,7 +775,7 @@ export class MatchSimulator extends EventSimulator {
       return;
     }
     this.resolveShotOutcome(f);
-    if(f.outcome==='saved')this.beginCounter(this.possession);
+    if(f.outcome==='saved')this.beginCounter(this.possession,'save');
   }
   resolveShotOutcome(f) {
     if(f.outcome==='wide'){

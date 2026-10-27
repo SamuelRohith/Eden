@@ -1,0 +1,10 @@
+# Pinned Microsoft integration used by agents/story_agent.py.
+agent-framework-core==1.23.0
+agent-framework-ollama==1.0.0b261022
+# Prevent --pre from selecting an incompatible HTTPX 1.0 development release.
+httpx==0.28.1
+
+# Local CPU semantic retrieval, separate from the Qwen text generator.
+torch==2.10.0
+sentence-transformers==6.2.0
+chromadb==1.5.9

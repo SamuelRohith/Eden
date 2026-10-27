@@ -3,8 +3,29 @@
   "version": "1.0.0",
   "private": true,
   "type": "module",
+  "main": "azure-functions.mjs",
+  "overrides": {
+    "@azure/identity": "4.12.0",
+    "uuid": "11.1.1"
+  },
+  "engines": {
+    "node": ">=22"
+  },
   "scripts": {
     "start": "node server.mjs",
-    "check": "node --check dist/app.js && node --check dist/simulator.js && node --check dist/analysis.js && node --check dist/set-piece-shape.js"
+    "check": "node scripts/check.mjs",
+    "test:ai": "node --test tests/*.test.mjs",
+    "smoke:ai": "node scripts/smoke-ai.mjs",
+    "verify:microsoft": "node scripts/verify-microsoft.mjs",
+    "azure:setup-search": "node scripts/create-search-index.mjs",
+    "test:microsoft": "node --test tests/microsoft.test.mjs",
+    "setup:rag": "node scripts/setup-rag.mjs",
+    "smoke:rag": "node scripts/smoke-rag.mjs",
+    "smoke:localization": "node scripts/smoke-localization.mjs"
+  },
+  "dependencies": {
+    "@azure/functions": "^4.17.0",
+    "@azure/monitor-opentelemetry": "1.20.1",
+    "@opentelemetry/api": "^1.9.1"
   }
 }

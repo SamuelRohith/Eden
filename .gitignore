@@ -5,3 +5,7 @@ node_modules/
 .sites/
 *.tar.gz
 *.log
+.venv/
+__pycache__/
+.data/
+local.settings.json

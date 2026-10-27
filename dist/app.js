@@ -1,5 +1,7 @@
 import { buildAnalysis } from './analysis.js';
 import { MatchSimulator } from './simulator.js';
+import { MatchIntelligence } from './intelligence.js';
+import { eventPresentation } from './event-presentation.js';
 
 const $ = id => document.getElementById(id);
 const canvas = $('pitchCanvas');
@@ -14,13 +16,15 @@ let field = null;
 let confettiId = null;
 let displayedSecond = -1;
 let stoppedEvent = null;
-let tackleMarker = null;
+let pitchMarker = null;
+let pitchMarkerTimeout = null;
 let autoplayTimer = null;
+let autoResumeAllowed = false;
 function cancelAutoplay() { clearTimeout(autoplayTimer); autoplayTimer = null; }
 function scheduleAutoplay() {
   cancelAutoplay();
-  if ($('autoplay').checked && simulation?.paused && !simulation.finished && !$('reviewDialog').open && !$('eventOverlay').hidden) {
-    autoplayTimer = setTimeout(() => { autoplayTimer = null; if ($('autoplay').checked && !$('reviewDialog').open) resumeMatch(); }, 2000);
+  if ($('autoplay').checked && simulation?.paused && !simulation.finished && !$('reviewDialog').open && autoResumeAllowed) {
+    autoplayTimer = setTimeout(() => { autoplayTimer = null; if ($('autoplay').checked && autoResumeAllowed && !$('reviewDialog').open) resumeMatch(); }, eventPresentation(stoppedEvent,simulation.setPiece?.kind).autoplayDelay);
   }
 }
 $('autoplay').addEventListener('change', () => {
@@ -28,6 +32,7 @@ $('autoplay').addEventListener('change', () => {
   scheduleAutoplay();
 });
 const reviewCache = new Map();
+const intelligence = new MatchIntelligence();
 
 function openSetup() { if (!dialog.open) dialog.showModal(); }
 $('runSimulation').addEventListener('click', openSetup);
@@ -55,12 +60,14 @@ $('setupForm').addEventListener('submit', event => {
     return;
   }
   dialog.close();
-  startMatch({ teams: [{ name: home, formation: $('homeShape').value }, { name: away, formation: $('awayShape').value }] });
+  startMatch({ audience:document.querySelector('input[name="audience"]:checked').value, scenario:{league:$('matchLeague').value,stakes:$('matchStakes').value}, teams: [{ name: home, formation: $('homeShape').value }, { name: away, formation: $('awayShape').value }] });
 });
 
 function startMatch(config) {
   cancelAutoplay();
-  tackleMarker = null;
+  pitchMarker = null;
+  clearTimeout(pitchMarkerTimeout);
+  const markers=$('pitchMarkers');markers.getContext('2d').clearRect(0,0,markers.width,markers.height);
   if (animationId) cancelAnimationFrame(animationId);
   if (confettiId) cancelAnimationFrame(confettiId);
   clearTimeout(goalTimeout);
@@ -75,7 +82,7 @@ function startMatch(config) {
   $('eventOverlay').hidden = true;
   $('pitchCanvas').classList.remove('pitch-blurred');
   $('reviewDialog').close();
-  reviewCache.clear(); stoppedEvent = null;
+  reviewCache.clear(); stoppedEvent = null; autoResumeAllowed = false;
   $('headerMatchTitle').hidden = false;
   document.body.classList.add('in-match');
   $('playControl').disabled = false;
@@ -86,6 +93,7 @@ function startMatch(config) {
   $('progressStatus').textContent = 'THE STORY IS UNFOLDING';
   $('pitchMinute').textContent = '1 real second = 1 match minute';
   simulation = new MatchSimulator(config, onMatchEvent);
+  intelligence.start(simulation);
   displayedSecond = -1;
   ['Home', 'Away'].forEach((side, index) => {
     $(`score${side}Name`).textContent = simulation.teams[index].name;
@@ -108,7 +116,7 @@ function animate(timestamp) {
   drawPitch();
   updateStats(simulation.paused);
   $('playControl').textContent = simulation.paused ? '▶ Play / resume match' : 'Pause match';
-  $('pauseNote').textContent = simulation.paused ? ($('autoplay').checked && !$('eventOverlay').hidden ? 'Autoplay · continuing after 2 seconds. Review to hold this moment.' : 'Paused. Review a green moment, then press Play.') : ($('autoplay').checked ? 'Autoplay on · event popups last 2 seconds.' : 'Major moments pause automatically for review.');
+  $('pauseNote').textContent = simulation.paused ? ($('autoplay').checked && autoResumeAllowed ? 'Autoplay · continuing shortly. Review a green moment to hold.' : 'Paused. Review a green moment, then press Play.') : ($('autoplay').checked ? 'Autoplay on · stoppages resume automatically.' : 'Major moments pause automatically for review.');
   if (simulation.finished) {
     animationId = null;
     finishMatch();
@@ -150,7 +158,9 @@ function updateStats(force = false) {
 }
 
 function onMatchEvent(event) {
+  intelligence.record(event, simulation);
   const entry = document.createElement('article');
+  entry.dataset.eventId = event.id;
   entry.className = `commentary-item ${event.type}`;
   if (event.key) {
     entry.classList.add('key-event');
@@ -177,9 +187,18 @@ function onMatchEvent(event) {
   entry.append(time, body);
   $('commentary').prepend(entry);
   if (event.stop) { stoppedEvent = event; showEventStop(event); }
-  if (event.type === 'tackle' || event.type === 'counterattack') {
-    const player = event.type === 'counterattack' ? simulation.possessor : simulation.players.find(p => p.team === event.team && p.number === event.player);
-    if (player) tackleMarker = {x:player.x,y:player.y,until:performance.now()+1600};
+  const cue=eventPresentation(event,simulation.setPiece?.kind);
+  if(cue.label) {
+    const player=event.type==='counterattack'?simulation.possessor:simulation.players.find(p=>p.team===event.team&&p.number===event.player);
+    const spot=['throwin','corner','freekick','goalkick'].includes(event.type)?simulation.setPiece?.spot||simulation.ball:event.type==='goal'?simulation.ball:player;
+    if(spot) {
+      clearTimeout(pitchMarkerTimeout);
+      pitchMarker={x:spot.x,y:spot.y,label:cue.label,until:performance.now()+cue.markerDuration};
+      // Wall-clock expiry also clears the label if the match ends or stays paused.
+      pitchMarkerTimeout=setTimeout(()=>{
+        pitchMarker=null;const layer=$('pitchMarkers');layer.getContext('2d').clearRect(0,0,layer.width,layer.height);
+      },cue.markerDuration);
+    }
   }
   // Keep the newest highlight visible while retaining the complete feed for review.
   $('commentary').scrollTop = 0;
@@ -201,7 +220,7 @@ function onMatchEvent(event) {
 }
 
 function finishMatch() {
-  cancelAutoplay();
+  cancelAutoplay();autoResumeAllowed=false;
   $('playControl').disabled = true;
   $('eventOverlay').hidden = true;
   const [home, away] = simulation.teams;
@@ -288,12 +307,24 @@ function drawPitch() {
     c.fillStyle = '#ffffff'; c.textAlign = 'center'; c.textBaseline = 'middle'; c.font = `700 ${Math.max(7, radius * .83)}px "DM Sans", sans-serif`; c.fillText(String(p.number), px, py + .45);
   }
   drawBall(x(simulation.ball.x), y(simulation.ball.y) - simulation.ball.z * 7, Math.max(5.4, radius * .62));
-  if (tackleMarker && performance.now() < tackleMarker.until) {
-    const mx=Math.max(f.x+68,Math.min(x(tackleMarker.x),f.x+f.w-68));
-    const my=Math.max(f.y+24,y(tackleMarker.y)-30);
-    c.save(); c.fillStyle='#102e47aa'; c.fillRect(mx-67,my-12,134,25);
-    c.fillStyle='#fff'; c.font='600 10px sans-serif';c.textAlign='center'; c.textBaseline='middle';
-    c.fillText('COUNTERATTACK ↗',mx,my+1);c.restore();
+  // A separate transparent layer keeps restart labels sharp while the pitch
+  // itself is blurred for the pause/review controls underneath.
+  const markers=$('pitchMarkers');
+  if(markers.width!==canvas.width||markers.height!==canvas.height){markers.width=canvas.width;markers.height=canvas.height;}
+  const mc=markers.getContext('2d');mc.setTransform(1,0,0,1,0,0);mc.clearRect(0,0,markers.width,markers.height);
+  mc.setTransform(context.getTransform());
+  if (pitchMarker && performance.now() < pitchMarker.until) {
+    mc.font='800 13px sans-serif';
+    const width=mc.measureText(pitchMarker.label).width;
+    const inset=Math.max(85,width/2+12);
+    const mx=Math.max(f.x+inset,Math.min(x(pitchMarker.x),f.x+f.w-inset));
+    const my=Math.max(f.y+30,Math.min(y(pitchMarker.y)-30,f.y+f.h-18));
+    const progress=1-(pitchMarker.until-performance.now())/1000;
+    const reduced=window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    const scale=reduced?1:1+.25*Math.sin(Math.min(1,progress*4)*Math.PI);
+    mc.save();mc.globalAlpha=Math.min(1,(1-progress)*5);mc.translate(mx,my-(reduced?0:progress*15));mc.scale(scale,scale);
+    mc.shadowColor='#063c2e';mc.shadowBlur=6;mc.fillStyle='#ffffff';mc.font='800 13px sans-serif';mc.textAlign='center';mc.textBaseline='middle';
+    mc.fillText(pitchMarker.label,0,0);mc.restore();
   }
   if (simulation.setPiece) {
     const sp=simulation.setPiece;
@@ -369,6 +400,12 @@ window.eden = { get match() { return simulation; } };
 
 
 function showEventStop(event) {
+  autoResumeAllowed=true;
+  if(eventPresentation(event,simulation.setPiece?.kind).lightweight) {
+    $('eventOverlay').hidden=true;
+    $('pitchCanvas').classList.remove('pitch-blurred');
+    scheduleAutoplay();return;
+  }
   $('eventTitle').textContent = (event.cause === 'handball' ? 'handball' : event.type).replace('throwin','Throw-in').replace('goalkick','Goal kick').replace('freekick','Free kick').toUpperCase();
   $('eventSummary').textContent = event.text;
   $('eventOverlay').hidden = false;
@@ -376,7 +413,7 @@ function showEventStop(event) {
   scheduleAutoplay();
 }
 function resumeMatch() {
-  cancelAutoplay();
+  cancelAutoplay();autoResumeAllowed=false;stoppedEvent=null;
   if (!simulation || simulation.finished) return;
   $('reviewDialog').close();
   $('eventOverlay').hidden = true;
@@ -389,13 +426,15 @@ $('overlayReview').addEventListener('click', () => { if(stoppedEvent) showReview
 $('reviewResume').addEventListener('click', resumeMatch);
 $('playControl').addEventListener('click', () => {
   if(!simulation||simulation.finished)return;
-  if(simulation.paused)resumeMatch();else { cancelAutoplay(); simulation.paused=true; }
+  if(simulation.paused)resumeMatch();else { cancelAutoplay(); autoResumeAllowed=false; simulation.paused=true; }
 });
 $('closeReview').addEventListener('click', () => $('reviewDialog').close());
 $('reviewDialog').addEventListener('close', () => {
   if(!simulation?.finished) $('playControl').focus();
 });
 function showReview(event) {
+  autoResumeAllowed=false;
+  intelligence.review(event);
   cancelAutoplay();
   if(!simulation.finished) simulation.paused=true;
   $('eventOverlay').hidden=true;
